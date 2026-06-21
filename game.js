@@ -68,7 +68,9 @@
     const tangentSpeed=Math.max(0,dot(arrival,tangent));
     const bonus=landingQuality>.82?1+CFG.landingBonus*(landingQuality-.82)/.18:1;
     // A grazing landing preserves speed; a perpendicular impact loses all of it.
-    const angleRetention=Math.pow(forwardAlignment,1.15);
+    const baseRetention=Math.pow(forwardAlignment,1.15);
+    // Downhill catches are forgiving: only one quarter of the normal angle penalty applies.
+    const angleRetention=surface.tangent.y>0?1-(1-baseRetention)*.25:baseRetention;
     const carriedSpeed=Math.max(momentumFloor,tangentSpeed);
     const keptSpeed=Math.min(CFG.maxSpeed,carriedSpeed*angleRetention*bonus);
     body.velocity=mul(tangent,keptSpeed); momentumFloor=keptSpeed;
