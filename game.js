@@ -5,12 +5,12 @@
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 826, diveGravityMultiplier: 4.05, glideLift: 215,
+    gravity: 826, diveGravityMultiplier: 6.075, glideLift: 215,
     groundFriction: .075, airDrag: .025, maxSpeed: 900,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
     terrainAmplitude: 62.5, terrainWavelength: 620, characterRadius: 16,
-    groundDiveMultiplier: 3.225, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70,
+    groundDiveMultiplier: 4.84, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70,
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
   };
   let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,airborneTime=0,chirped=false,particles=[],rings=[];
