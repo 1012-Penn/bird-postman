@@ -2,6 +2,15 @@
 
 本文件记录项目面向试玩版本的重要变化。
 
+## 2026-06-21 — Pastel 插画风视觉重构
+
+- 新增独立的 `renderer.js` 渲染层，包含 `BackgroundRenderer`、`TerrainRenderer`、`CharacterRenderer`、`EffectsRenderer`、`UIRenderer` 与总 `Renderer`。
+- 使用集中 `THEME` 参数的低饱和 pastel 配色，替换默认 Demo 风格。
+- 增加渐变天空、太阳、云朵与 3 层视差远景山丘；主地形改为带渐变厚度、草地描边和波浪高光的完整地面。
+- 重绘小鸟为几何插画角色，并根据俯冲、滑翔和碰撞状态调整姿态与翅膀动画。
+- 增加拖尾、起飞气流、落地粒子、轻微撞击压扁和稳定的镜头拉远效果。
+- 正式 UI 改为圆角半透明面板；物理调试层与正式 UI 分离，按 `D` 切换。
+
 ## 2026-06-21 — 初始 Demo
 
 - 建立单页可运行的 Windows 浏览器游戏原型。
