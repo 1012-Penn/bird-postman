@@ -11,7 +11,8 @@
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
     terrainAmplitude: 62.5, terrainWavelength: 620, characterRadius: 16,
     groundDiveMultiplier: 4.84, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70, minGroundSpeed: 37.5,
-    groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
+    groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12,
+    takeoffSpeed: 430, crestLookAhead: .13, launchVelocityFactor: .18
   };
   let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,momentumFloor=285,airborneTime=0,chirped=false,particles=[],rings=[];
   const body={position:{x:160,y:0},velocity:{x:160,y:0},state:'Grounded'};
@@ -79,7 +80,15 @@
     v+=(slopeForce-CFG.groundFriction*v)*dt;v=clamp(v,CFG.minGroundSpeed,CFG.maxSpeed);
     // At a convex crest the required downward curvature can exceed gravity; the ground cannot pull the bird down.
     const requiredDown=v*v*Math.max(0,surface.curvature), availableDown=CFG.gravity*(-surface.normal.y)*(held?CFG.diveAdhesion:CFG.groundAdhesion);
-    if(surface.curvature>0&&requiredDown>availableDown/CFG.takeoffThreshold){body.velocity=mul(surface.tangent,v);momentumFloor=v;body.state='Airborne';return}
+    const ahead=terrainAt(body.position.x+Math.max(35,v*CFG.crestLookAhead));
+    const approachingCrest=surface.tangent.y<-.04&&ahead.tangent.y>=0;
+    const forcedLaunch=approachingCrest&&v>=CFG.takeoffSpeed;
+    if((surface.curvature>0&&requiredDown>availableDown/CFG.takeoffThreshold)||forcedLaunch){
+      body.velocity=mul(surface.tangent,v);
+      // Leave just before the crest, retaining uphill velocity and adding a small release of stored momentum.
+      if(forcedLaunch)body.velocity.y-=70+(v-CFG.takeoffSpeed)*CFG.launchVelocityFactor;
+      momentumFloor=v;body.state='Airborne';return
+    }
     body.position.x+=surface.tangent.x*v*dt;const next=terrainAt(body.position.x);body.position.y=next.y-CFG.characterRadius;body.velocity=mul(next.tangent,v);
     if(held&&Math.random()<dt*17)spawnDust();
   }
