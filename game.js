@@ -5,8 +5,8 @@
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 826, diveGravityMultiplier: 6.075, glideLift: 285, glideSpeedLiftFactor: .24, glideSpeedLiftMax: 180, flapLift: 95,
-    groundFriction: .075, airDrag: .025, maxSpeed: 900,
+    gravity: 826, diveGravityMultiplier: 6.075, glideLift: 285, glideSpeedLiftFactor: .5, glideSpeedLiftMax: 720, flapLift: 95,
+    groundFriction: .075, airDrag: .018, maxSpeed: 2400,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
     terrainAmplitude: 62.5, terrainWavelength: 620, characterRadius: 16,
