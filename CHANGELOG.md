@@ -2,6 +2,13 @@
 
 本文件记录项目面向试玩版本的重要变化。
 
+## 2026-06-21 — 明亮扁平资源接入
+
+- 移除水粉远景，替换为原创的扁平渐变天空与层叠山丘背景。
+- 将四张邮差鸟姿态图提取为透明精灵，并按贴坡、俯冲、滑翔和扇翅状态切换。
+- 主地形、收集物、粒子和 HUD 重画为统一的干净色块风格。
+- 配乐更新为原创 93 BPM、6/8 原声感程序分层；预留项目内原创循环音轨替换接口。
+
 ## 2026-06-21 — Pastel 插画风视觉重构
 
 - 新增独立的 `renderer.js` 渲染层，包含 `BackgroundRenderer`、`TerrainRenderer`、`CharacterRenderer`、`EffectsRenderer`、`UIRenderer` 与总 `Renderer`。

@@ -25,31 +25,54 @@
   const camera = { x: 0, y: 0, zoom: 1 };
   let renderer;
 
-  // Original, generative "wind postcard" score. It uses a new 12-step pentatonic motif,
-  // not a recording, melody, or arrangement from any existing game.
-  class Soundtrack {
-    constructor() { this.context = null; this.timer = null; this.nextTime = 0; this.step = 0; this.intensity = 0; this.airborne = false; this.muted = false; }
-    start(context) { if (this.timer) return; this.context = context; this.nextTime = context.currentTime + .12; this.timer = setInterval(() => this.schedule(), 90); }
-    setMuted(value) { this.muted = value; }
-    update(speed, airborne) { this.intensity += (clamp((speed - 120) / 820, 0, 1) - this.intensity) * .06; this.airborne = airborne; }
-    note(freq, when, duration, volume, type = 'triangle') {
-      if (this.muted || !this.context) return;
-      const osc = this.context.createOscillator(), gain = this.context.createGain(); osc.type = type; osc.frequency.setValueAtTime(freq, when); gain.gain.setValueAtTime(.0001, when); gain.gain.exponentialRampToValueAtTime(volume, when + .018); gain.gain.exponentialRampToValueAtTime(.0001, when + duration); osc.connect(gain).connect(this.context.destination); osc.start(when); osc.stop(when + duration + .03);
+  // Original 93 BPM 6/8 acoustic-style score. It is generated from a new motif and can
+  // later be replaced by an optional project-local assets/music/original-loop.ogg file.
+  class MusicDirector {
+    constructor() { this.context = null; this.timer = null; this.master = null; this.nextTime = 0; this.step = 0; this.intensity = 0; this.airborne = false; this.combo = 1; this.muted = false; this.loopTrack = null; this.usingLoop = false; }
+    start(context) {
+      if (this.timer) return;
+      this.context = context; this.master = context.createGain(); this.master.gain.value = .72; this.master.connect(context.destination); this.nextTime = context.currentTime + .12;
+      this.timer = setInterval(() => this.schedule(), 70); this.tryLoadOriginalLoop();
+    }
+    tryLoadOriginalLoop() {
+      fetch('assets/music/original-loop.ogg', { method: 'HEAD' }).then(response => {
+        if (!response.ok) return;
+        const track = new Audio('assets/music/original-loop.ogg'); track.loop = true; track.volume = .38; track.muted = this.muted;
+        track.play().then(() => { this.loopTrack = track; this.usingLoop = true; }).catch(() => {});
+      }).catch(() => {});
+    }
+    setMuted(value) { this.muted = value; if (this.master && this.context) this.master.gain.setTargetAtTime(value ? .0001 : .72, this.context.currentTime, .03); if (this.loopTrack) this.loopTrack.muted = value; }
+    update(speed, airborne, combo) { const target = clamp((speed - 140) / 730, 0, 1); this.intensity += (target - this.intensity) * .08; this.airborne = airborne; this.combo = combo; }
+    voice(freq, when, duration, volume, tone = 'triangle') {
+      if (this.muted || !this.context || !this.master) return;
+      const oscillator = this.context.createOscillator(), gain = this.context.createGain(), filter = this.context.createBiquadFilter();
+      oscillator.type = tone; oscillator.frequency.setValueAtTime(freq, when); filter.type = 'lowpass'; filter.frequency.value = tone === 'sine' ? 2500 : 1800;
+      gain.gain.setValueAtTime(.0001, when); gain.gain.exponentialRampToValueAtTime(volume, when + .012); gain.gain.exponentialRampToValueAtTime(.0001, when + duration);
+      oscillator.connect(filter).connect(gain).connect(this.master); oscillator.start(when); oscillator.stop(when + duration + .04);
+    }
+    pluck(freq, when, duration, volume) {
+      this.voice(freq, when, duration, volume, 'triangle'); this.voice(freq * 2, when, duration * .42, volume * .18, 'sine');
+    }
+    shaker(when, volume) {
+      if (this.muted || !this.context || !this.master) return;
+      const buffer = this.context.createBuffer(1, Math.floor(this.context.sampleRate * .04), this.context.sampleRate), data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      const source = this.context.createBufferSource(), filter = this.context.createBiquadFilter(), gain = this.context.createGain(); source.buffer = buffer; filter.type = 'highpass'; filter.frequency.value = 4200; gain.gain.setValueAtTime(volume, when); gain.gain.exponentialRampToValueAtTime(.0001, when + .05); source.connect(filter).connect(gain).connect(this.master); source.start(when);
     }
     schedule() {
-      if (!this.context) return; const interval = 60 / 92 / 2;
-      const notes = [293.66, 369.99, 440, 554.37, 659.25];
-      const motif = [0, 2, 1, 3, 2, 4, 2, 1, 0, 3, 4, 2];
-      while (this.nextTime < this.context.currentTime + .16) {
-        const index = this.step % motif.length, note = notes[motif[index]];
-        this.note(note, this.nextTime, interval * .88, .012 + this.intensity * .018);
-        if (index % 3 === 0) this.note(notes[Math.max(0, motif[index] - 1)] / 2, this.nextTime, interval * 1.55, .009 + this.intensity * .014, 'sine');
-        if (this.intensity > .42 && index % 2 === 1) this.note(note * (this.airborne ? 2 : 1.5), this.nextTime + .02, interval * .35, .004 + this.intensity * .008, 'sine');
+      if (!this.context || this.usingLoop) return;
+      const interval = 60 / 93 / 3, scale = [196.0, 220.0, 246.94, 293.66, 329.63, 392.0], motif = [0, 2, 3, 2, 1, 4, 3, 1, 2, 5, 3, 2, 0, 1, 4, 2, 3, 1];
+      while (this.nextTime < this.context.currentTime + .18) {
+        const index = this.step % motif.length, note = scale[motif[index]];
+        this.pluck(note, this.nextTime, interval * .9, .013 + this.intensity * .012);
+        if (index % 3 === 0) this.pluck(scale[Math.max(0, motif[index] - 1)] * .5, this.nextTime, interval * 2.5, .012);
+        if (this.intensity > .28 && index % 3 === 1) this.shaker(this.nextTime, .006 + this.intensity * .009);
+        if (this.intensity > .52 && index % 6 === 4) this.voice(note * (this.airborne ? 2 : 1.5), this.nextTime + .02, interval * .55, .006 + this.combo * .0015, 'sine');
         this.step++; this.nextTime += interval;
       }
     }
   }
-  const soundtrack = new Soundtrack();
+  const soundtrack = new MusicDirector();
 
   const dot = (a, b) => a.x * b.x + a.y * b.y;
   const mag = v => Math.hypot(v.x, v.y);
@@ -146,7 +169,7 @@
     if (priorState === 'Grounded' && body.state === 'Airborne') emit('launch');
     if (body.state === 'Airborne') { airborneTime += dt; if (!held) flapTime += dt; if (airborneTime >= 1 && !chirped) { chirped = true; cuteChirp(); } }
     else { airborneTime = 0; chirped = false; }
-    soundtrack.update(mag(body.velocity), body.state === 'Airborne');
+    soundtrack.update(mag(body.velocity), body.state === 'Airborne', combo);
     impactTimer = Math.max(0, impactTimer - dt); flash = Math.max(0, flash - dt); comboTimer -= dt; if (comboTimer <= 0) combo = Math.max(1, combo - 1);
     const altitude = Math.max(0, terrainAt(body.position.x).y - (body.position.y + CFG.characterRadius));
     const targetZoom = body.state === 'Airborne' ? clamp(1 - altitude / CFG.zoomAltitude * (1 - CFG.minCameraZoom), CFG.minCameraZoom, 1) : 1;
