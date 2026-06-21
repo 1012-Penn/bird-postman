@@ -1,15 +1,15 @@
 /* Visual layer only: it reads game state but never changes physics. */
 (() => {
   const THEME = {
-    skyTop: '#91dce7', skyMid: '#d5eedb', skyBottom: '#fff0c9',
-    sun: '#ffe7a4', cloud: '#fffdf5',
+    skyTop: '#77c6de', skyMid: '#c8e7d8', skyBottom: '#f8e4bd',
+    sun: '#ffe4a1', cloud: '#fffaf0',
     hills: [
       { color: '#c9e6d5', line: '#e5f3dd', speed: .10, base: .66, amp: 42, wave: 510 },
       { color: '#a9d5bd', line: '#d6ead2', speed: .20, base: .73, amp: 58, wave: 420 },
       { color: '#83bd9d', line: '#bfe0b6', speed: .34, base: .81, amp: 46, wave: 330 }
     ],
-    groundTop: '#a8d985', groundBottom: '#4f9f7b', grassLight: '#e5f4a9', grassShade: '#77b878',
-    birdBody: '#f58f78', birdBelly: '#ffd2a0', birdWing: '#e77072', birdWingLight: '#f4a187', birdBeak: '#f5bf68', ink: '#365260',
+    groundTop: '#afd98a', groundBottom: '#4b947a', grassLight: '#edf7b6', grassShade: '#6cae79',
+    birdBody: '#ef8876', birdBelly: '#ffcf9b', birdWing: '#ca6772', birdWingLight: '#f29a84', birdBeak: '#efb95f', ink: '#334d59',
     panel: 'rgba(255,255,250,.74)', panelInk: '#467274', panelAccent: '#ef9271', ring: '#fff2a4'
   };
 
@@ -35,10 +35,16 @@
       const { width:w, height:h, camera } = state;
       const sky = ctx.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, THEME.skyTop); sky.addColorStop(.58, THEME.skyMid); sky.addColorStop(1, THEME.skyBottom);
       ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+      ctx.save(); ctx.globalAlpha = .09; ctx.fillStyle = '#fffaf0';
+      for (let y = 10; y < h; y += 19) for (let x = (y * 7) % 23; x < w; x += 29) ctx.fillRect(x, y, 1, 1);
+      ctx.restore();
       ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#fff8d1'; ctx.beginPath(); ctx.arc(w * .78, h * .17, 64, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       ctx.fillStyle = THEME.sun; ctx.beginPath(); ctx.arc(w * .78, h * .17, 40, 0, Math.PI * 2); ctx.fill();
       for (let i = -1; i < 7; i++) this.cloud(ctx, ((i * 230 - camera.x * .07) % 1550 + 1550) % 1550 - 150, 78 + (i % 3) * 56, .62 + (i % 2) * .32, .54);
       for (const layer of THEME.hills) { this.hillPath(ctx, w, h, camera.x, layer); ctx.fillStyle = layer.color; ctx.fill(); ctx.save(); ctx.globalAlpha = .54; ctx.strokeStyle = layer.line; ctx.lineWidth = 3; ctx.stroke(); ctx.restore(); }
+      ctx.save(); ctx.globalAlpha = .48; ctx.strokeStyle = '#fff9dd'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) { const x = ((w * .17 + i * 96 - camera.x * .05) % (w + 140)) - 30; const y = h * .27 + i * 16; ctx.beginPath(); ctx.arc(x, y, 5, Math.PI * 1.18, Math.PI * 1.8); ctx.arc(x + 11, y - 2, 4, Math.PI * 1.15, Math.PI * 1.8); ctx.stroke(); }
+      ctx.restore();
     }
   }
 
@@ -75,13 +81,16 @@
       const pose = held ? .24 : (gliding ? -.1 : 0); const squash = 1 - impactTimer * .18;
       ctx.save(); ctx.translate(body.position.x, body.position.y); ctx.rotate(baseAngle + pose); ctx.scale(1 + impactTimer * .2, squash);
       if (held && body.state === 'Grounded') { ctx.globalAlpha = .18; ctx.fillStyle = '#fff5a8'; ctx.beginPath(); ctx.arc(0, 5, 24 + Math.min(20, speed * .02), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
-      const wingAngle = gliding ? -.62 + Math.sin(flapTime * 14) * .74 : (held ? .62 : .3);
-      ctx.save(); ctx.rotate(wingAngle); ctx.fillStyle = THEME.birdWing; ctx.beginPath(); ctx.ellipse(-8, -1, 18, 7, -.16, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = THEME.birdWingLight; ctx.beginPath(); ctx.ellipse(-11, -2, 9, 3.5, -.16, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      ctx.fillStyle = THEME.birdBody; ctx.beginPath(); ctx.ellipse(0, 0, 19, 16, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = THEME.birdBelly; ctx.beginPath(); ctx.ellipse(5, 7, 11, 6, .08, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = THEME.birdBeak; ctx.beginPath(); ctx.moveTo(16, -1); ctx.lineTo(28, 4); ctx.lineTo(16, 8); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = THEME.ink; ctx.beginPath(); ctx.arc(8, -6, 2.8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(9, -7, 1, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#f8a594'; ctx.beginPath(); ctx.arc(10, 1, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#bd5f69'; ctx.beginPath(); ctx.moveTo(-17, 3); ctx.lineTo(-31, -4); ctx.lineTo(-23, 10); ctx.lineTo(-34, 13); ctx.lineTo(-16, 14); ctx.closePath(); ctx.fill();
+      const wingAngle = gliding ? -.72 + Math.sin(flapTime * 14) * .78 : (held ? .67 : .26);
+      ctx.save(); ctx.rotate(wingAngle); ctx.fillStyle = THEME.birdWing; ctx.beginPath(); ctx.moveTo(-7, 1); ctx.bezierCurveTo(-27, -15, -35, -3, -28, 9); ctx.bezierCurveTo(-18, 16, -6, 10, -3, 5); ctx.closePath(); ctx.fill(); ctx.fillStyle = THEME.birdWingLight; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.bezierCurveTo(-22, -8, -27, -2, -20, 6); ctx.bezierCurveTo(-14, 9, -8, 6, -5, 4); ctx.closePath(); ctx.fill(); ctx.restore();
+      ctx.fillStyle = THEME.birdBody; ctx.beginPath(); ctx.ellipse(-3, 2, 19, 15, -.04, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f59b82'; ctx.beginPath(); ctx.arc(8, -7, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = THEME.birdBelly; ctx.beginPath(); ctx.ellipse(4, 8, 11, 6, .08, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#687a90'; ctx.beginPath(); ctx.roundRect(-8, 8, 13, 8, 3); ctx.fill(); ctx.strokeStyle = '#f6dd9c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-3, 7); ctx.lineTo(2, 15); ctx.stroke();
+      ctx.fillStyle = THEME.birdBeak; ctx.beginPath(); ctx.moveTo(19, -7); ctx.lineTo(31, -2); ctx.lineTo(19, 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = THEME.ink; ctx.beginPath(); ctx.arc(12, -11, 2.8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(13, -12, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e98780'; ctx.beginPath(); ctx.arc(14, -4, 3, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
   }

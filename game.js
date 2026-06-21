@@ -25,6 +25,32 @@
   const camera = { x: 0, y: 0, zoom: 1 };
   let renderer;
 
+  // Original, generative "wind postcard" score. It uses a new 12-step pentatonic motif,
+  // not a recording, melody, or arrangement from any existing game.
+  class Soundtrack {
+    constructor() { this.context = null; this.timer = null; this.nextTime = 0; this.step = 0; this.intensity = 0; this.airborne = false; this.muted = false; }
+    start(context) { if (this.timer) return; this.context = context; this.nextTime = context.currentTime + .12; this.timer = setInterval(() => this.schedule(), 90); }
+    setMuted(value) { this.muted = value; }
+    update(speed, airborne) { this.intensity += (clamp((speed - 120) / 820, 0, 1) - this.intensity) * .06; this.airborne = airborne; }
+    note(freq, when, duration, volume, type = 'triangle') {
+      if (this.muted || !this.context) return;
+      const osc = this.context.createOscillator(), gain = this.context.createGain(); osc.type = type; osc.frequency.setValueAtTime(freq, when); gain.gain.setValueAtTime(.0001, when); gain.gain.exponentialRampToValueAtTime(volume, when + .018); gain.gain.exponentialRampToValueAtTime(.0001, when + duration); osc.connect(gain).connect(this.context.destination); osc.start(when); osc.stop(when + duration + .03);
+    }
+    schedule() {
+      if (!this.context) return; const interval = 60 / 92 / 2;
+      const notes = [293.66, 369.99, 440, 554.37, 659.25];
+      const motif = [0, 2, 1, 3, 2, 4, 2, 1, 0, 3, 4, 2];
+      while (this.nextTime < this.context.currentTime + .16) {
+        const index = this.step % motif.length, note = notes[motif[index]];
+        this.note(note, this.nextTime, interval * .88, .012 + this.intensity * .018);
+        if (index % 3 === 0) this.note(notes[Math.max(0, motif[index] - 1)] / 2, this.nextTime, interval * 1.55, .009 + this.intensity * .014, 'sine');
+        if (this.intensity > .42 && index % 2 === 1) this.note(note * (this.airborne ? 2 : 1.5), this.nextTime + .02, interval * .35, .004 + this.intensity * .008, 'sine');
+        this.step++; this.nextTime += interval;
+      }
+    }
+  }
+  const soundtrack = new Soundtrack();
+
   const dot = (a, b) => a.x * b.x + a.y * b.y;
   const mag = v => Math.hypot(v.x, v.y);
   const mul = (v, n) => ({ x: v.x * n, y: v.y * n });
@@ -53,7 +79,7 @@
   }
   const startingX = () => CFG.terrainWavelength * .30;
 
-  function initAudio() { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); }
+  function initAudio() { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); soundtrack.start(audio); }
   function tone(freq, duration = .12, type = 'sine', volume = .035) {
     if (muted || !audio) return;
     const oscillator = audio.createOscillator(), gain = audio.createGain();
@@ -120,6 +146,7 @@
     if (priorState === 'Grounded' && body.state === 'Airborne') emit('launch');
     if (body.state === 'Airborne') { airborneTime += dt; if (!held) flapTime += dt; if (airborneTime >= 1 && !chirped) { chirped = true; cuteChirp(); } }
     else { airborneTime = 0; chirped = false; }
+    soundtrack.update(mag(body.velocity), body.state === 'Airborne');
     impactTimer = Math.max(0, impactTimer - dt); flash = Math.max(0, flash - dt); comboTimer -= dt; if (comboTimer <= 0) combo = Math.max(1, combo - 1);
     const altitude = Math.max(0, terrainAt(body.position.x).y - (body.position.y + CFG.characterRadius));
     const targetZoom = body.state === 'Airborne' ? clamp(1 - altitude / CFG.zoomAltitude * (1 - CFG.minCameraZoom), CFG.minCameraZoom, 1) : 1;
@@ -144,6 +171,6 @@
   addEventListener('keyup', event => { if (event.code === 'Space') up(event); });
   canvas.addEventListener('pointerdown', down); addEventListener('pointerup', up); addEventListener('pointerleave', up);
   play.addEventListener('click', begin); restart.addEventListener('click', () => { initAudio(); running = true; resetGame(); });
-  sound.addEventListener('click', () => { muted = !muted; sound.textContent = muted ? '×' : '♪'; if (!muted) initAudio(); });
+  sound.addEventListener('click', () => { muted = !muted; soundtrack.setMuted(muted); sound.textContent = muted ? '×' : '♪'; if (!muted) initAudio(); });
   body.position.x = startingX(); body.position.y = terrainAt(body.position.x).y - CFG.characterRadius; camera.x = body.position.x - W * .3; camera.y = body.position.y - H * .54; seedRings(body.position.x); requestAnimationFrame(frame);
 })();
