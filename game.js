@@ -9,7 +9,7 @@
     groundFriction: .075, airDrag: .025, maxSpeed: 900,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
-    terrainAmplitude: 165, terrainWavelength: 170, characterRadius: 16,
+    terrainAmplitude: 155, terrainWavelength: 400, terrainDownhillRatio: .72, characterRadius: 16,
     groundDiveMultiplier: 2.15, groundGlideMultiplier: .9,
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
   };
@@ -27,17 +27,14 @@
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const lerp=(a,b,t)=>a+(b-a)*t;
 
-  // Infinite Catmull-Rom terrain. Four deterministic control points surround every query.
-  function controlY(i){
-    const a=CFG.terrainAmplitude, w=CFG.terrainWavelength;
-    return H*.67 + a*(.72*Math.sin(i*.89+.5)+.25*Math.sin(i*2.17+1.2)+.09*Math.sin(i*4.8));
-  }
-  function catmull(p0,p1,p2,p3,t){const t2=t*t,t3=t2*t;return .5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t2+(-p0+3*p1-3*p2+p3)*t3)}
-  function catmullD(p0,p1,p2,p3,t){const t2=t*t;return .5*((-p0+p2)+2*(2*p0-5*p1+4*p2-p3)*t+3*(-p0+3*p1-3*p2+p3)*t2)}
+  // Infinite cubic-Bezier terrain. Each period has a long downhill and a short uphill.
+  // The cubic easing has horizontal tangent at both control points, so adjacent hills join smoothly.
+  const cubicEase=t=>t*t*(3-2*t);
   function terrainY(x){
-    const w=CFG.terrainWavelength, i=Math.floor(x/w), t=(x-i*w)/w;
-    const p0=controlY(i-1),p1=controlY(i),p2=controlY(i+1),p3=controlY(i+2);
-    return catmull(p0,p1,p2,p3,t);
+    const p=((x%CFG.terrainWavelength)+CFG.terrainWavelength)%CFG.terrainWavelength/CFG.terrainWavelength;
+    const down=CFG.terrainDownhillRatio, base=H*.65, a=CFG.terrainAmplitude;
+    if(p<down)return base-a+2*a*cubicEase(p/down);
+    return base+a-2*a*cubicEase((p-down)/(1-down));
   }
   function terrainAt(x){
     const y=terrainY(x), eps=2;
@@ -46,7 +43,7 @@
     const second=(terrainY(x+eps)-2*y+terrainY(x-eps))/(eps*eps), curvature=second/Math.pow(1+dydx*dydx,1.5);
     return {y,tangent,normal,slopeAngle:Math.atan2(dydx,1),curvature};
   }
-  function startingX(){for(let x=300;x<3000;x+=4)if(terrainAt(x).tangent.y>.6)return x;return 160}
+  function startingX(){return CFG.terrainWavelength*.30}
 
   function initAudio(){if(!audio)audio=new(window.AudioContext||window.webkitAudioContext)();audio.resume()}
   function tone(freq,d=.12,type='sine',vol=.035){if(muted||!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+d)}
