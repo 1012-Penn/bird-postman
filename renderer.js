@@ -16,6 +16,10 @@
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
   class BackgroundRenderer {
+    constructor() {
+      this.backdrop = new Image();
+      this.backdrop.src = 'assets/wind-postcard-backdrop.png';
+    }
     cloud(ctx, x, y, s, alpha = .78) {
       ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = THEME.cloud;
       ctx.beginPath(); ctx.arc(x, y, 18 * s, 0, Math.PI * 2); ctx.arc(x + 25 * s, y - 10 * s, 27 * s, 0, Math.PI * 2);
@@ -33,6 +37,17 @@
     }
     draw(ctx, state) {
       const { width:w, height:h, camera } = state;
+      const hasBackdrop = this.backdrop.complete && this.backdrop.naturalWidth > 0;
+      if (hasBackdrop) {
+        const scale = Math.max(w / this.backdrop.naturalWidth, h / this.backdrop.naturalHeight);
+        const drawW = this.backdrop.naturalWidth * scale, drawH = this.backdrop.naturalHeight * scale;
+        const drift = Math.sin(camera.x * .00035) * 12;
+        ctx.drawImage(this.backdrop, (w - drawW) * .5 + drift, (h - drawH) * .5, drawW, drawH);
+        const wash = ctx.createLinearGradient(0, 0, 0, h); wash.addColorStop(0, 'rgba(221,244,243,.12)'); wash.addColorStop(1, 'rgba(255,241,202,.08)'); ctx.fillStyle = wash; ctx.fillRect(0, 0, w, h);
+        const haze = { ...THEME.hills[0], color: 'rgba(204,232,216,.38)', line: 'rgba(255,255,238,.38)', speed: .17, base: .71, amp: 24, wave: 610 };
+        this.hillPath(ctx, w, h, camera.x, haze); ctx.fillStyle = haze.color; ctx.fill(); ctx.strokeStyle = haze.line; ctx.lineWidth = 2; ctx.stroke();
+        return;
+      }
       const sky = ctx.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, THEME.skyTop); sky.addColorStop(.58, THEME.skyMid); sky.addColorStop(1, THEME.skyBottom);
       ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
       ctx.save(); ctx.globalAlpha = .09; ctx.fillStyle = '#fffaf0';
