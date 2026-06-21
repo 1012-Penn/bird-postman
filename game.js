@@ -14,7 +14,7 @@
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12,
     takeoffSpeed: 430, crestLookAhead: .13, launchVelocityFactor: .12, minCameraZoom: .62, zoomAltitude: 1050
   };
-  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,momentumFloor=285,airborneTime=0,flapTime=0,chirped=false,particles=[],rings=[];
+  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,landingAngle=0,momentumFloor=285,airborneTime=0,flapTime=0,chirped=false,particles=[],rings=[];
   const body={position:{x:160,y:0},velocity:{x:160,y:0},state:'Grounded'};
   let cameraX=0,cameraY=0,cameraZoom=1,audio;
 
@@ -62,15 +62,18 @@
   function land(surface){
     const arrival=body.velocity, arrivalSpeed=mag(arrival), tangent=surface.tangent;
     const alignment=arrivalSpeed?clamp(dot(norm(arrival),tangent),-1,1):0;
-    landingQuality=clamp((alignment-.05)/.95,0,1);
+    const forwardAlignment=clamp(alignment,0,1);
+    landingAngle=Math.acos(forwardAlignment)*180/Math.PI;
+    landingQuality=forwardAlignment;
     const tangentSpeed=Math.max(0,dot(arrival,tangent));
-    const uphillCrash=surface.tangent.y<-.05&&arrival.y>35;
     const bonus=landingQuality>.82?1+CFG.landingBonus*(landingQuality-.82)/.18:1;
-    // Landing preserves accumulated momentum, except for a direct impact into an uphill face.
-    const keptSpeed=uphillCrash?0:Math.min(CFG.maxSpeed,Math.max(momentumFloor,tangentSpeed*bonus));
+    // A grazing landing preserves speed; a perpendicular impact loses all of it.
+    const angleRetention=Math.pow(forwardAlignment,1.15);
+    const carriedSpeed=Math.max(momentumFloor,tangentSpeed);
+    const keptSpeed=Math.min(CFG.maxSpeed,carriedSpeed*angleRetention*bonus);
     body.velocity=mul(tangent,keptSpeed); momentumFloor=keptSpeed;
     body.position.y=surface.y-CFG.characterRadius; body.state='Grounded';
-    if(uphillCrash){landingQuality=0;combo=1;flash=.22;tone(120,.13,'sine',.045)}else if(landingQuality>.68){combo++;comboTimer=1.25;flash=.16;tone(370+landingQuality*260,.1,'triangle',.045)}else{combo=1;tone(180,.08,'sine',.025)}
+    if(landingQuality<.12){combo=1;flash=.22;tone(120,.13,'sine',.045)}else if(landingQuality>.68){combo++;comboTimer=1.25;flash=.16;tone(370+landingQuality*260,.1,'triangle',.045)}else{combo=1;tone(180,.08,'sine',.025)}
     spawnDust();
   }
   function updateGround(dt,surface){
@@ -103,9 +106,9 @@
   }
   function update(dt){const surface=terrainAt(body.position.x);if(body.state==='Grounded')updateGround(dt,surface);else updateAir(dt);if(body.state==='Airborne'){airborneTime+=dt;if(!held)flapTime+=dt;if(airborneTime>=1&&!chirped){chirped=true;cuteChirp()}}else{airborneTime=0;chirped=false}const altitude=Math.max(0,terrainAt(body.position.x).y-(body.position.y+CFG.characterRadius));const targetZoom=body.state==='Airborne'?clamp(1-altitude/CFG.zoomAltitude*(1-CFG.minCameraZoom),CFG.minCameraZoom,1):1;cameraZoom+=Math.min(1,dt*3)*(targetZoom-cameraZoom);cameraX=body.position.x-W*.3/cameraZoom;cameraY=body.position.y-H*.54/cameraZoom;for(const r of rings)if(!r.got&&Math.abs(r.x-body.position.x)<27&&Math.abs(r.y-body.position.y)<30){r.got=true;combo++;comboTimer=1.5;flash=.18;tone(660,.13,'sine',.05)}comboTimer-=dt;if(comboTimer<=0)combo=Math.max(1,combo-1);scoreEl.textContent=String(Math.floor(body.position.x/8)).padStart(4,'0');comboEl.textContent=`×${combo}`}
   function line(p,v,color,label){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+v.x,p.y+v.y);ctx.stroke();ctx.fillText(label,p.x+v.x+4,p.y+v.y+4)}
-  function drawDebug(){if(!debug)return;const p=screenBody(),s=terrainAt(body.position.x),spd=mag(body.velocity);ctx.save();ctx.font='12px monospace';ctx.textBaseline='middle';line(p,mul(body.velocity,.16*cameraZoom),'#fff','v');line(p,mul(s.tangent,48*cameraZoom),'#65f0df','t');line(p,mul(s.normal,48*cameraZoom),'#ff8fab','n');ctx.fillStyle='#ffffffdd';ctx.fillText(`STATE  ${body.state}`,18,H-105);ctx.fillText(`speed  ${spd.toFixed(1)} px/s`,18,H-84);ctx.fillText(`landing quality  ${(landingQuality*100).toFixed(0)}%`,18,H-63);ctx.fillText(`zoom  ${cameraZoom.toFixed(2)}  |  D: debug`,18,H-42);ctx.restore()}
+  function drawDebug(){if(!debug)return;const p=screenBody(),s=terrainAt(body.position.x),spd=mag(body.velocity);ctx.save();ctx.font='12px monospace';ctx.textBaseline='middle';line(p,mul(body.velocity,.16*cameraZoom),'#fff','v');line(p,mul(s.tangent,48*cameraZoom),'#65f0df','t');line(p,mul(s.normal,48*cameraZoom),'#ff8fab','n');ctx.fillStyle='#ffffffdd';ctx.fillText(`STATE  ${body.state}`,18,H-126);ctx.fillText(`speed  ${spd.toFixed(1)} px/s`,18,H-105);ctx.fillText(`landing quality  ${(landingQuality*100).toFixed(0)}%`,18,H-84);ctx.fillText(`impact angle  ${landingAngle.toFixed(0)}°`,18,H-63);ctx.fillText(`zoom  ${cameraZoom.toFixed(2)}  |  D: debug`,18,H-42);ctx.restore()}
   function frame(t){const dt=Math.min(.025,(t-last)/1000||0);last=t;if(running)update(dt);drawBackground();ctx.save();ctx.translate(W*.3,H*.54);ctx.scale(cameraZoom,cameraZoom);ctx.translate(-body.position.x,-body.position.y);drawRings();drawGround();drawParticles(dt);drawBird();ctx.restore();drawDebug();if(flash>0){ctx.fillStyle=`rgba(255,255,225,${flash})`;ctx.fillRect(0,0,W,H);flash-=dt}requestAnimationFrame(frame)}
-  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);momentumFloor=285;body.state='Grounded';combo=1;landingQuality=0;airborneTime=0;flapTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
+  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);momentumFloor=285;body.state='Grounded';combo=1;landingQuality=0;landingAngle=0;airborneTime=0;flapTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
   function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);resetGame()}
   const down=e=>{if(e.target===sound||e.target===restart)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);restart.addEventListener('click',()=>{initAudio();running=true;resetGame()});sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.x=startingX();body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;cameraX=body.position.x-W*.3;cameraY=body.position.y-H*.54;seedRings(body.position.x);requestAnimationFrame(frame);
 })();
