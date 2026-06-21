@@ -10,10 +10,10 @@
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
     terrainAmplitude: 62.5, terrainWavelength: 620, characterRadius: 16,
-    groundDiveMultiplier: 4.84, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70,
+    groundDiveMultiplier: 4.84, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70, minGroundSpeed: 37.5,
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
   };
-  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,airborneTime=0,chirped=false,particles=[],rings=[];
+  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,momentumFloor=285,airborneTime=0,chirped=false,particles=[],rings=[];
   const body={position:{x:160,y:0},velocity:{x:160,y:0},state:'Grounded'};
   let cameraX=0, audio;
 
@@ -63,9 +63,10 @@
     const alignment=arrivalSpeed?clamp(dot(norm(arrival),tangent),-1,1):0;
     landingQuality=clamp((alignment-.05)/.95,0,1);
     const tangentSpeed=Math.max(0,dot(arrival,tangent));
-    const retention=lerp(CFG.badLandingPenalty,CFG.landingSpeedRetention,landingQuality);
     const bonus=landingQuality>.82?1+CFG.landingBonus*(landingQuality-.82)/.18:1;
-    body.velocity=mul(tangent,Math.min(CFG.maxSpeed,tangentSpeed*retention*bonus));
+    // A flight carries its accumulated slope momentum back to the terrain: landing cannot erase it.
+    const keptSpeed=Math.min(CFG.maxSpeed,Math.max(momentumFloor,tangentSpeed*bonus));
+    body.velocity=mul(tangent,keptSpeed); momentumFloor=keptSpeed;
     body.position.y=surface.y-CFG.characterRadius; body.state='Grounded';
     if(landingQuality>.68){combo++;comboTimer=1.25;flash=.16;tone(370+landingQuality*260,.1,'triangle',.045)}else{combo=1;tone(180,.08,'sine',.025)}
     spawnDust();
@@ -75,10 +76,10 @@
     const gravityTangent=CFG.gravity*surface.tangent.y*CFG.slopeAccelerationMultiplier;
     const posture=held?CFG.groundDiveMultiplier:CFG.groundGlideMultiplier;
     const slopeForce=surface.tangent.y<0?gravityTangent*CFG.uphillResistanceMultiplier:gravityTangent*posture;
-    v+=(slopeForce-CFG.groundFriction*v)*dt;v=clamp(v,25,CFG.maxSpeed);
+    v+=(slopeForce-CFG.groundFriction*v)*dt;v=clamp(v,CFG.minGroundSpeed,CFG.maxSpeed);
     // At a convex crest the required downward curvature can exceed gravity; the ground cannot pull the bird down.
     const requiredDown=v*v*Math.max(0,surface.curvature), availableDown=CFG.gravity*(-surface.normal.y)*(held?CFG.diveAdhesion:CFG.groundAdhesion);
-    if(surface.curvature>0&&requiredDown>availableDown/CFG.takeoffThreshold){body.velocity=mul(surface.tangent,v);body.state='Airborne';return}
+    if(surface.curvature>0&&requiredDown>availableDown/CFG.takeoffThreshold){body.velocity=mul(surface.tangent,v);momentumFloor=v;body.state='Airborne';return}
     body.position.x+=surface.tangent.x*v*dt;const next=terrainAt(body.position.x);body.position.y=next.y-CFG.characterRadius;body.velocity=mul(next.tangent,v);
     if(held&&Math.random()<dt*17)spawnDust();
   }
@@ -93,7 +94,7 @@
   function line(p,v,color,label){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+v.x,p.y+v.y);ctx.stroke();ctx.fillText(label,p.x+v.x+4,p.y+v.y+4)}
   function drawDebug(){if(!debug)return;const p=screenBody(),s=terrainAt(body.position.x),spd=mag(body.velocity);ctx.save();ctx.font='12px monospace';ctx.textBaseline='middle';line(p,mul(body.velocity,.16),'#fff','v');line(p,mul(s.tangent,48),'#65f0df','t');line(p,mul(s.normal,48),'#ff8fab','n');ctx.fillStyle='#ffffffdd';ctx.fillText(`STATE  ${body.state}`,18,H-105);ctx.fillText(`speed  ${spd.toFixed(1)} px/s`,18,H-84);ctx.fillText(`landing quality  ${(landingQuality*100).toFixed(0)}%`,18,H-63);ctx.fillText(`slope  ${(s.slopeAngle*180/Math.PI).toFixed(1)}°  |  D: debug`,18,H-42);ctx.restore()}
   function frame(t){const dt=Math.min(.025,(t-last)/1000||0);last=t;drawBackground();if(running)update(dt);drawRings();drawGround();drawParticles(dt);drawBird();drawDebug();if(flash>0){ctx.fillStyle=`rgba(255,255,225,${flash})`;ctx.fillRect(0,0,W,H);flash-=dt}requestAnimationFrame(frame)}
-  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);body.state='Grounded';combo=1;landingQuality=0;airborneTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
+  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);momentumFloor=285;body.state='Grounded';combo=1;landingQuality=0;airborneTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
   function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);resetGame()}
   const down=e=>{if(e.target===sound||e.target===restart)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);restart.addEventListener('click',()=>{initAudio();running=true;resetGame()});sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.x=startingX();body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;seedRings(body.position.x);requestAnimationFrame(frame);
 })();
