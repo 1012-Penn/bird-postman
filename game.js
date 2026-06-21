@@ -5,8 +5,8 @@
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 826, diveGravityMultiplier: 4.2, glideLift: 230, glideSpeedLiftFactor: .24, glideSpeedLiftMax: 300, flapLift: 65,
-    groundFriction: .085, airDrag: .09, maxSpeed: 1250,
+    gravity: 826, diveGravityMultiplier: 4.2, glideLift: 245, glideSpeedLiftFactor: .34, glideSpeedLiftMax: 450, flapLift: 70,
+    groundFriction: .085, airDrag: .16, maxSpeed: 950,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
     terrainAmplitude: 62.5, terrainWavelength: 620, characterRadius: 16,
@@ -64,12 +64,13 @@
     const alignment=arrivalSpeed?clamp(dot(norm(arrival),tangent),-1,1):0;
     landingQuality=clamp((alignment-.05)/.95,0,1);
     const tangentSpeed=Math.max(0,dot(arrival,tangent));
+    const uphillCrash=surface.tangent.y<-.05&&arrival.y>35;
     const bonus=landingQuality>.82?1+CFG.landingBonus*(landingQuality-.82)/.18:1;
-    // A flight carries its accumulated slope momentum back to the terrain: landing cannot erase it.
-    const keptSpeed=Math.min(CFG.maxSpeed,Math.max(momentumFloor,tangentSpeed*bonus));
+    // Landing preserves accumulated momentum, except for a direct impact into an uphill face.
+    const keptSpeed=uphillCrash?0:Math.min(CFG.maxSpeed,Math.max(momentumFloor,tangentSpeed*bonus));
     body.velocity=mul(tangent,keptSpeed); momentumFloor=keptSpeed;
     body.position.y=surface.y-CFG.characterRadius; body.state='Grounded';
-    if(landingQuality>.68){combo++;comboTimer=1.25;flash=.16;tone(370+landingQuality*260,.1,'triangle',.045)}else{combo=1;tone(180,.08,'sine',.025)}
+    if(uphillCrash){landingQuality=0;combo=1;flash=.22;tone(120,.13,'sine',.045)}else if(landingQuality>.68){combo++;comboTimer=1.25;flash=.16;tone(370+landingQuality*260,.1,'triangle',.045)}else{combo=1;tone(180,.08,'sine',.025)}
     spawnDust();
   }
   function updateGround(dt,surface){
