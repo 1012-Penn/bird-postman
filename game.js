@@ -5,7 +5,7 @@
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 826, diveGravityMultiplier: 6.075, glideLift: 215,
+    gravity: 826, diveGravityMultiplier: 6.075, glideLift: 285, glideSpeedLiftFactor: .24, glideSpeedLiftMax: 180, flapLift: 95,
     groundFriction: .075, airDrag: .025, maxSpeed: 900,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
@@ -14,7 +14,7 @@
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12,
     takeoffSpeed: 430, crestLookAhead: .13, launchVelocityFactor: .18
   };
-  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,momentumFloor=285,airborneTime=0,chirped=false,particles=[],rings=[];
+  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,momentumFloor=285,airborneTime=0,flapTime=0,chirped=false,particles=[],rings=[];
   const body={position:{x:160,y:0},velocity:{x:160,y:0},state:'Grounded'};
   let cameraX=0, audio;
 
@@ -53,7 +53,7 @@
   function drawBackground(){const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#73cfe2');sky.addColorStop(.58,'#b6e7d4');sky.addColorStop(1,'#f7dea8');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff1bc';ctx.beginPath();ctx.arc(W*.78,H*.16,42,0,7);ctx.fill();for(let i=-1;i<6;i++)cloud((i*260-cameraX*.12)%1500-120,80+(i%3)*57,.7+(i%2)*.34)}
   function drawGround(){ctx.beginPath();ctx.moveTo(0,H);for(let sx=0;sx<=W+8;sx+=7)ctx.lineTo(sx,terrainAt(cameraX+sx).y);ctx.lineTo(W,H);ctx.closePath();ctx.fillStyle='#5d9a79';ctx.fill();ctx.beginPath();for(let sx=0;sx<=W+8;sx+=7)ctx.lineTo(sx,terrainAt(cameraX+sx).y);ctx.strokeStyle='#d7eeaa';ctx.lineWidth=7;ctx.stroke();ctx.beginPath();for(let sx=0;sx<=W+8;sx+=7)ctx.lineTo(sx,terrainAt(cameraX+sx).y-2);ctx.strokeStyle='#77b582';ctx.lineWidth=2;ctx.stroke()}
   function screenBody(){return{x:body.position.x-cameraX,y:body.position.y}}
-  function drawBird(){const p=screenBody(), speed=mag(body.velocity);const ang=body.state==='Grounded'?terrainAt(body.position.x).slopeAngle:Math.atan2(body.velocity.y,body.velocity.x)*.68;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(ang);if(held&&body.state==='Grounded'){ctx.globalAlpha=.18;ctx.fillStyle='#fff4a8';ctx.beginPath();ctx.arc(0,5,25+Math.min(20,speed*.025),0,7);ctx.fill();ctx.globalAlpha=1}ctx.fillStyle='#f28c73';ctx.beginPath();ctx.ellipse(0,0,19,16,0,0,7);ctx.fill();ctx.fillStyle='#f7b28e';ctx.beginPath();ctx.ellipse(4,7,11,6,0,0,7);ctx.fill();ctx.fillStyle='#e96f68';ctx.beginPath();ctx.ellipse(-6,3,11,7,-.55,0,7);ctx.fill();ctx.fillStyle='#f3c760';ctx.beginPath();ctx.moveTo(16,-1);ctx.lineTo(27,4);ctx.lineTo(16,7);ctx.closePath();ctx.fill();ctx.fillStyle='#344d5b';ctx.beginPath();ctx.arc(8,-6,2.7,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(9,-7,1,0,7);ctx.fill();ctx.restore()}
+  function drawBird(){const p=screenBody(), speed=mag(body.velocity), gliding=body.state==='Airborne'&&!held;const ang=body.state==='Grounded'?terrainAt(body.position.x).slopeAngle:Math.atan2(body.velocity.y,body.velocity.x)*.68;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(ang);if(held&&body.state==='Grounded'){ctx.globalAlpha=.18;ctx.fillStyle='#fff4a8';ctx.beginPath();ctx.arc(0,5,25+Math.min(20,speed*.025),0,7);ctx.fill();ctx.globalAlpha=1}const wingAngle=gliding?-.45+Math.sin(flapTime*15)*.72:.42;ctx.save();ctx.rotate(wingAngle);ctx.fillStyle='#df6f6b';ctx.beginPath();ctx.ellipse(-8,0,16,7,0,0,7);ctx.fill();ctx.fillStyle='#f59b83';ctx.beginPath();ctx.ellipse(-10,-1,8,3.5,0,0,7);ctx.fill();ctx.restore();ctx.fillStyle='#f28c73';ctx.beginPath();ctx.ellipse(0,0,19,16,0,0,7);ctx.fill();ctx.fillStyle='#f7b28e';ctx.beginPath();ctx.ellipse(4,7,11,6,0,0,7);ctx.fill();ctx.fillStyle='#f3c760';ctx.beginPath();ctx.moveTo(16,-1);ctx.lineTo(27,4);ctx.lineTo(16,7);ctx.closePath();ctx.fill();ctx.fillStyle='#344d5b';ctx.beginPath();ctx.arc(8,-6,2.7,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(9,-7,1,0,7);ctx.fill();ctx.restore()}
   function spawnDust(){const p=screenBody();for(let i=0;i<3;i++)particles.push({x:p.x-10,y:p.y+12,vx:-20-Math.random()*70,vy:-15-Math.random()*35,life:.5+Math.random()*.25,c:'#f8eab3'})}
   function drawParticles(dt){particles=particles.filter(p=>(p.life-=dt)>0);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=50*dt;ctx.globalAlpha=Math.min(1,p.life*2);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,7);ctx.fill()}ctx.globalAlpha=1}
   function seedRings(origin=body.position.x){rings=[];for(let i=1;i<30;i++){const x=origin+160+i*430;rings.push({x,y:terrainAt(x).y-110-Math.random()*100,got:false})}}
@@ -94,16 +94,17 @@
   }
   function updateAir(dt){
     const accel={x:-body.velocity.x*CFG.airDrag,y:CFG.gravity-body.velocity.y*CFG.airDrag};
-    if(held)accel.y+=CFG.gravity*(CFG.diveGravityMultiplier-1);else if(body.velocity.y>0)accel.y-=CFG.glideLift;
+    if(held)accel.y+=CFG.gravity*(CFG.diveGravityMultiplier-1);
+    else {const flightSpeed=mag(body.velocity), flapPulse=(Math.sin(flapTime*15)+1)*.5;accel.y-=CFG.glideLift+Math.min(CFG.glideSpeedLiftMax,flightSpeed*CFG.glideSpeedLiftFactor)+CFG.flapLift*flapPulse}
     body.velocity=add(body.velocity,mul(accel,dt));const s=mag(body.velocity);if(s>CFG.maxSpeed)body.velocity=mul(norm(body.velocity),CFG.maxSpeed);
     body.position=add(body.position,mul(body.velocity,dt));const surface=terrainAt(body.position.x);
     if(body.position.y+CFG.characterRadius>=surface.y&&body.velocity.y>0)land(surface);
   }
-  function update(dt){const surface=terrainAt(body.position.x);if(body.state==='Grounded')updateGround(dt,surface);else updateAir(dt);if(body.state==='Airborne'){airborneTime+=dt;if(airborneTime>=1&&!chirped){chirped=true;cuteChirp()}}else{airborneTime=0;chirped=false}cameraX=body.position.x-W*.3;for(const r of rings)if(!r.got&&Math.abs(r.x-body.position.x)<27&&Math.abs(r.y-body.position.y)<30){r.got=true;combo++;comboTimer=1.5;flash=.18;tone(660,.13,'sine',.05)}comboTimer-=dt;if(comboTimer<=0)combo=Math.max(1,combo-1);scoreEl.textContent=String(Math.floor(body.position.x/8)).padStart(4,'0');comboEl.textContent=`×${combo}`}
+  function update(dt){const surface=terrainAt(body.position.x);if(body.state==='Grounded')updateGround(dt,surface);else updateAir(dt);if(body.state==='Airborne'){airborneTime+=dt;if(!held)flapTime+=dt;if(airborneTime>=1&&!chirped){chirped=true;cuteChirp()}}else{airborneTime=0;chirped=false}cameraX=body.position.x-W*.3;for(const r of rings)if(!r.got&&Math.abs(r.x-body.position.x)<27&&Math.abs(r.y-body.position.y)<30){r.got=true;combo++;comboTimer=1.5;flash=.18;tone(660,.13,'sine',.05)}comboTimer-=dt;if(comboTimer<=0)combo=Math.max(1,combo-1);scoreEl.textContent=String(Math.floor(body.position.x/8)).padStart(4,'0');comboEl.textContent=`×${combo}`}
   function line(p,v,color,label){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+v.x,p.y+v.y);ctx.stroke();ctx.fillText(label,p.x+v.x+4,p.y+v.y+4)}
   function drawDebug(){if(!debug)return;const p=screenBody(),s=terrainAt(body.position.x),spd=mag(body.velocity);ctx.save();ctx.font='12px monospace';ctx.textBaseline='middle';line(p,mul(body.velocity,.16),'#fff','v');line(p,mul(s.tangent,48),'#65f0df','t');line(p,mul(s.normal,48),'#ff8fab','n');ctx.fillStyle='#ffffffdd';ctx.fillText(`STATE  ${body.state}`,18,H-105);ctx.fillText(`speed  ${spd.toFixed(1)} px/s`,18,H-84);ctx.fillText(`landing quality  ${(landingQuality*100).toFixed(0)}%`,18,H-63);ctx.fillText(`slope  ${(s.slopeAngle*180/Math.PI).toFixed(1)}°  |  D: debug`,18,H-42);ctx.restore()}
   function frame(t){const dt=Math.min(.025,(t-last)/1000||0);last=t;drawBackground();if(running)update(dt);drawRings();drawGround();drawParticles(dt);drawBird();drawDebug();if(flash>0){ctx.fillStyle=`rgba(255,255,225,${flash})`;ctx.fillRect(0,0,W,H);flash-=dt}requestAnimationFrame(frame)}
-  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);momentumFloor=285;body.state='Grounded';combo=1;landingQuality=0;airborneTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
+  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);momentumFloor=285;body.state='Grounded';combo=1;landingQuality=0;airborneTime=0;flapTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
   function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);resetGame()}
   const down=e=>{if(e.target===sound||e.target===restart)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);restart.addEventListener('click',()=>{initAudio();running=true;resetGame()});sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.x=startingX();body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;seedRings(body.position.x);requestAnimationFrame(frame);
 })();
