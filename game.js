@@ -5,13 +5,13 @@
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 980, diveGravityMultiplier: 2.35, glideLift: 175,
-    groundFriction: .34, airDrag: .055, maxSpeed: 620,
+    gravity: 1180, diveGravityMultiplier: 2.7, glideLift: 215,
+    groundFriction: .075, airDrag: .025, maxSpeed: 900,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
-    terrainAmplitude: 105, terrainWavelength: 220, characterRadius: 16,
-    groundDiveMultiplier: 1.36, groundGlideMultiplier: .92,
-    groundAdhesion: 1.18, diveAdhesion: 2.05, landingBonus: .075
+    terrainAmplitude: 165, terrainWavelength: 170, characterRadius: 16,
+    groundDiveMultiplier: 2.15, groundGlideMultiplier: .9,
+    groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
   };
   let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,particles=[],rings=[];
   const body={position:{x:160,y:0},velocity:{x:160,y:0},state:'Grounded'};
@@ -46,6 +46,7 @@
     const second=(terrainY(x+eps)-2*y+terrainY(x-eps))/(eps*eps), curvature=second/Math.pow(1+dydx*dydx,1.5);
     return {y,tangent,normal,slopeAngle:Math.atan2(dydx,1),curvature};
   }
+  function startingX(){for(let x=300;x<3000;x+=4)if(terrainAt(x).tangent.y>.6)return x;return 160}
 
   function initAudio(){if(!audio)audio=new(window.AudioContext||window.webkitAudioContext)();audio.resume()}
   function tone(freq,d=.12,type='sine',vol=.035){if(muted||!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+d)}
@@ -56,7 +57,7 @@
   function drawBird(){const p=screenBody(), speed=mag(body.velocity);const ang=body.state==='Grounded'?terrainAt(body.position.x).slopeAngle:Math.atan2(body.velocity.y,body.velocity.x)*.68;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(ang);if(held&&body.state==='Grounded'){ctx.globalAlpha=.18;ctx.fillStyle='#fff4a8';ctx.beginPath();ctx.arc(0,5,25+Math.min(20,speed*.025),0,7);ctx.fill();ctx.globalAlpha=1}ctx.fillStyle='#f28c73';ctx.beginPath();ctx.ellipse(0,0,19,16,0,0,7);ctx.fill();ctx.fillStyle='#f7b28e';ctx.beginPath();ctx.ellipse(4,7,11,6,0,0,7);ctx.fill();ctx.fillStyle='#e96f68';ctx.beginPath();ctx.ellipse(-6,3,11,7,-.55,0,7);ctx.fill();ctx.fillStyle='#f3c760';ctx.beginPath();ctx.moveTo(16,-1);ctx.lineTo(27,4);ctx.lineTo(16,7);ctx.closePath();ctx.fill();ctx.fillStyle='#344d5b';ctx.beginPath();ctx.arc(8,-6,2.7,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(9,-7,1,0,7);ctx.fill();ctx.restore()}
   function spawnDust(){const p=screenBody();for(let i=0;i<3;i++)particles.push({x:p.x-10,y:p.y+12,vx:-20-Math.random()*70,vy:-15-Math.random()*35,life:.5+Math.random()*.25,c:'#f8eab3'})}
   function drawParticles(dt){particles=particles.filter(p=>(p.life-=dt)>0);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=50*dt;ctx.globalAlpha=Math.min(1,p.life*2);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,7);ctx.fill()}ctx.globalAlpha=1}
-  function seedRings(){rings=[];for(let i=1;i<30;i++){const x=280+i*470;rings.push({x,y:terrainAt(x).y-110-Math.random()*100,got:false})}}
+  function seedRings(origin=body.position.x){rings=[];for(let i=1;i<30;i++){const x=origin+160+i*430;rings.push({x,y:terrainAt(x).y-110-Math.random()*100,got:false})}}
   function drawRings(){for(const r of rings){const x=r.x-cameraX;if(x<-30||x>W+30||r.got)continue;ctx.save();ctx.translate(x,r.y);ctx.rotate(Math.sin((cameraX+r.x)*.008)*.14);ctx.strokeStyle='#fff0a6';ctx.lineWidth=6;ctx.shadowColor='#fff8b6';ctx.shadowBlur=11;ctx.beginPath();ctx.arc(0,0,17,0,7);ctx.stroke();ctx.restore()}}
 
   function land(surface){
@@ -93,6 +94,6 @@
   function line(p,v,color,label){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+v.x,p.y+v.y);ctx.stroke();ctx.fillText(label,p.x+v.x+4,p.y+v.y+4)}
   function drawDebug(){if(!debug)return;const p=screenBody(),s=terrainAt(body.position.x),spd=mag(body.velocity);ctx.save();ctx.font='12px monospace';ctx.textBaseline='middle';line(p,mul(body.velocity,.16),'#fff','v');line(p,mul(s.tangent,48),'#65f0df','t');line(p,mul(s.normal,48),'#ff8fab','n');ctx.fillStyle='#ffffffdd';ctx.fillText(`STATE  ${body.state}`,18,H-105);ctx.fillText(`speed  ${spd.toFixed(1)} px/s`,18,H-84);ctx.fillText(`landing quality  ${(landingQuality*100).toFixed(0)}%`,18,H-63);ctx.fillText(`slope  ${(s.slopeAngle*180/Math.PI).toFixed(1)}°  |  D: debug`,18,H-42);ctx.restore()}
   function frame(t){const dt=Math.min(.025,(t-last)/1000||0);last=t;drawBackground();if(running)update(dt);drawRings();drawGround();drawParticles(dt);drawBird();drawDebug();if(flash>0){ctx.fillStyle=`rgba(255,255,225,${flash})`;ctx.fillRect(0,0,W,H);flash-=dt}requestAnimationFrame(frame)}
-  function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);body.position={x:160,y:terrainAt(160).y-CFG.characterRadius};body.velocity={x:165,y:0};body.state='Grounded';combo=1;landingQuality=0;seedRings();tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
-  const down=e=>{if(e.target===sound)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;seedRings();requestAnimationFrame(frame);
+  function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);body.state='Grounded';combo=1;landingQuality=0;seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
+  const down=e=>{if(e.target===sound)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.x=startingX();body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;seedRings(body.position.x);requestAnimationFrame(frame);
 })();
