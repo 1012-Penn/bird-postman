@@ -5,12 +5,12 @@
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 1180, diveGravityMultiplier: 2.7, glideLift: 215,
+    gravity: 1180, diveGravityMultiplier: 4.05, glideLift: 215,
     groundFriction: .075, airDrag: .025, maxSpeed: 900,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
-    terrainAmplitude: 155, terrainWavelength: 400, terrainDownhillRatio: .72, characterRadius: 16,
-    groundDiveMultiplier: 2.15, groundGlideMultiplier: .9,
+    terrainAmplitude: 125, terrainWavelength: 620, characterRadius: 16,
+    groundDiveMultiplier: 3.225, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70,
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
   };
   let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,particles=[],rings=[];
@@ -27,14 +27,10 @@
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const lerp=(a,b,t)=>a+(b-a)*t;
 
-  // Infinite cubic-Bezier terrain. Each period has a long downhill and a short uphill.
-  // The cubic easing has horizontal tangent at both control points, so adjacent hills join smoothly.
-  const cubicEase=t=>t*t*(3-2*t);
+  // Infinite sine-wave terrain. It is smooth in height, slope, and curvature at every point.
   function terrainY(x){
     const p=((x%CFG.terrainWavelength)+CFG.terrainWavelength)%CFG.terrainWavelength/CFG.terrainWavelength;
-    const down=CFG.terrainDownhillRatio, base=H*.65, a=CFG.terrainAmplitude;
-    if(p<down)return base-a+2*a*cubicEase(p/down);
-    return base+a-2*a*cubicEase((p-down)/(1-down));
+    return H*.65-CFG.terrainAmplitude*Math.cos(p*Math.PI*2);
   }
   function terrainAt(x){
     const y=terrainY(x), eps=2;
@@ -73,7 +69,8 @@
     let v=Math.max(0,dot(body.velocity,surface.tangent));
     const gravityTangent=CFG.gravity*surface.tangent.y*CFG.slopeAccelerationMultiplier;
     const posture=held?CFG.groundDiveMultiplier:CFG.groundGlideMultiplier;
-    v+=(gravityTangent*posture-CFG.groundFriction*v)*dt;v=clamp(v,25,CFG.maxSpeed);
+    const slopeForce=surface.tangent.y<0?gravityTangent*CFG.uphillResistanceMultiplier:gravityTangent*posture;
+    v+=(slopeForce-CFG.groundFriction*v)*dt;v=clamp(v,25,CFG.maxSpeed);
     // At a convex crest the required downward curvature can exceed gravity; the ground cannot pull the bird down.
     const requiredDown=v*v*Math.max(0,surface.curvature), availableDown=CFG.gravity*(-surface.normal.y)*(held?CFG.diveAdhesion:CFG.groundAdhesion);
     if(surface.curvature>0&&requiredDown>availableDown/CFG.takeoffThreshold){body.velocity=mul(surface.tangent,v);body.state='Airborne';return}
