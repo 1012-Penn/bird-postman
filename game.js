@@ -1,19 +1,19 @@
 (() => {
   const canvas = document.querySelector('#game'), ctx = canvas.getContext('2d');
   const scoreEl = document.querySelector('#score'), comboEl = document.querySelector('#combo');
-  const start = document.querySelector('#start'), play = document.querySelector('#play'), sound = document.querySelector('#sound');
+  const start = document.querySelector('#start'), play = document.querySelector('#play'), sound = document.querySelector('#sound'), restart = document.querySelector('#restart');
 
   // All game-feel tuning lives here. Values are in pixels, seconds, and pixels/second.
   const CFG = {
-    gravity: 1180, diveGravityMultiplier: 4.05, glideLift: 215,
+    gravity: 826, diveGravityMultiplier: 4.05, glideLift: 215,
     groundFriction: .075, airDrag: .025, maxSpeed: 900,
     landingSpeedRetention: .97, badLandingPenalty: .42,
     slopeAccelerationMultiplier: 1.12, takeoffThreshold: .82,
-    terrainAmplitude: 125, terrainWavelength: 620, characterRadius: 16,
+    terrainAmplitude: 62.5, terrainWavelength: 620, characterRadius: 16,
     groundDiveMultiplier: 3.225, groundGlideMultiplier: .9, uphillResistanceMultiplier: .70,
     groundAdhesion: 1.25, diveAdhesion: 2.8, landingBonus: .12
   };
-  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,particles=[],rings=[];
+  let W,H,dpr,last=0,running=false,held=false,muted=false,debug=true,flash=0,combo=1,comboTimer=0,landingQuality=0,airborneTime=0,chirped=false,particles=[],rings=[];
   const body={position:{x:160,y:0},velocity:{x:160,y:0},state:'Grounded'};
   let cameraX=0, audio;
 
@@ -43,6 +43,11 @@
 
   function initAudio(){if(!audio)audio=new(window.AudioContext||window.webkitAudioContext)();audio.resume()}
   function tone(freq,d=.12,type='sine',vol=.035){if(muted||!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+d)}
+  function cuteChirp(){
+    if(muted||!audio)return;
+    const patterns=[[820,1250],[1050,760],[670,1090],[1320,980],[910,1510]], [a,b]=patterns[Math.floor(Math.random()*patterns.length)];
+    const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;o.type='triangle';o.frequency.setValueAtTime(a,now);o.frequency.exponentialRampToValueAtTime(b,now+.13);o.frequency.exponentialRampToValueAtTime(a*1.08,now+.25);g.gain.setValueAtTime(.055,now);g.gain.exponentialRampToValueAtTime(.001,now+.31);o.connect(g).connect(audio.destination);o.start(now);o.stop(now+.32);
+  }
   function cloud(x,y,s){ctx.save();ctx.globalAlpha=.3;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,18*s,0,7);ctx.arc(x+24*s,y-8*s,25*s,0,7);ctx.arc(x+54*s,y,19*s,0,7);ctx.arc(x+26*s,y+9*s,27*s,0,7);ctx.fill();ctx.restore()}
   function drawBackground(){const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#73cfe2');sky.addColorStop(.58,'#b6e7d4');sky.addColorStop(1,'#f7dea8');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff1bc';ctx.beginPath();ctx.arc(W*.78,H*.16,42,0,7);ctx.fill();for(let i=-1;i<6;i++)cloud((i*260-cameraX*.12)%1500-120,80+(i%3)*57,.7+(i%2)*.34)}
   function drawGround(){ctx.beginPath();ctx.moveTo(0,H);for(let sx=0;sx<=W+8;sx+=7)ctx.lineTo(sx,terrainAt(cameraX+sx).y);ctx.lineTo(W,H);ctx.closePath();ctx.fillStyle='#5d9a79';ctx.fill();ctx.beginPath();for(let sx=0;sx<=W+8;sx+=7)ctx.lineTo(sx,terrainAt(cameraX+sx).y);ctx.strokeStyle='#d7eeaa';ctx.lineWidth=7;ctx.stroke();ctx.beginPath();for(let sx=0;sx<=W+8;sx+=7)ctx.lineTo(sx,terrainAt(cameraX+sx).y-2);ctx.strokeStyle='#77b582';ctx.lineWidth=2;ctx.stroke()}
@@ -84,10 +89,11 @@
     body.position=add(body.position,mul(body.velocity,dt));const surface=terrainAt(body.position.x);
     if(body.position.y+CFG.characterRadius>=surface.y&&body.velocity.y>0)land(surface);
   }
-  function update(dt){const surface=terrainAt(body.position.x);if(body.state==='Grounded')updateGround(dt,surface);else updateAir(dt);cameraX=body.position.x-W*.3;for(const r of rings)if(!r.got&&Math.abs(r.x-body.position.x)<27&&Math.abs(r.y-body.position.y)<30){r.got=true;combo++;comboTimer=1.5;flash=.18;tone(660,.13,'sine',.05)}comboTimer-=dt;if(comboTimer<=0)combo=Math.max(1,combo-1);scoreEl.textContent=String(Math.floor(body.position.x/8)).padStart(4,'0');comboEl.textContent=`×${combo}`}
+  function update(dt){const surface=terrainAt(body.position.x);if(body.state==='Grounded')updateGround(dt,surface);else updateAir(dt);if(body.state==='Airborne'){airborneTime+=dt;if(airborneTime>=1&&!chirped){chirped=true;cuteChirp()}}else{airborneTime=0;chirped=false}cameraX=body.position.x-W*.3;for(const r of rings)if(!r.got&&Math.abs(r.x-body.position.x)<27&&Math.abs(r.y-body.position.y)<30){r.got=true;combo++;comboTimer=1.5;flash=.18;tone(660,.13,'sine',.05)}comboTimer-=dt;if(comboTimer<=0)combo=Math.max(1,combo-1);scoreEl.textContent=String(Math.floor(body.position.x/8)).padStart(4,'0');comboEl.textContent=`×${combo}`}
   function line(p,v,color,label){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+v.x,p.y+v.y);ctx.stroke();ctx.fillText(label,p.x+v.x+4,p.y+v.y+4)}
   function drawDebug(){if(!debug)return;const p=screenBody(),s=terrainAt(body.position.x),spd=mag(body.velocity);ctx.save();ctx.font='12px monospace';ctx.textBaseline='middle';line(p,mul(body.velocity,.16),'#fff','v');line(p,mul(s.tangent,48),'#65f0df','t');line(p,mul(s.normal,48),'#ff8fab','n');ctx.fillStyle='#ffffffdd';ctx.fillText(`STATE  ${body.state}`,18,H-105);ctx.fillText(`speed  ${spd.toFixed(1)} px/s`,18,H-84);ctx.fillText(`landing quality  ${(landingQuality*100).toFixed(0)}%`,18,H-63);ctx.fillText(`slope  ${(s.slopeAngle*180/Math.PI).toFixed(1)}°  |  D: debug`,18,H-42);ctx.restore()}
   function frame(t){const dt=Math.min(.025,(t-last)/1000||0);last=t;drawBackground();if(running)update(dt);drawRings();drawGround();drawParticles(dt);drawBird();drawDebug();if(flash>0){ctx.fillStyle=`rgba(255,255,225,${flash})`;ctx.fillRect(0,0,W,H);flash-=dt}requestAnimationFrame(frame)}
-  function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);body.state='Grounded';combo=1;landingQuality=0;seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
-  const down=e=>{if(e.target===sound)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.x=startingX();body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;seedRings(body.position.x);requestAnimationFrame(frame);
+  function resetGame(){const x=startingX(),surface=terrainAt(x);body.position={x,y:surface.y-CFG.characterRadius};body.velocity=mul(surface.tangent,285);body.state='Grounded';combo=1;landingQuality=0;airborneTime=0;chirped=false;particles=[];seedRings(x);tone(440,.15,'triangle',.04);tone(660,.22,'sine',.025)}
+  function begin(){initAudio();running=true;start.style.opacity='0';setTimeout(()=>start.style.display='none',500);resetGame()}
+  const down=e=>{if(e.target===sound||e.target===restart)return;held=true;e.preventDefault()},up=e=>{held=false;e.preventDefault()};addEventListener('keydown',e=>{if(e.code==='Space')down(e);if(e.code==='KeyD'&&!e.repeat)debug=!debug});addEventListener('keyup',e=>{if(e.code==='Space')up(e)});canvas.addEventListener('pointerdown',down);addEventListener('pointerup',up);play.addEventListener('click',begin);restart.addEventListener('click',()=>{initAudio();running=true;resetGame()});sound.addEventListener('click',()=>{muted=!muted;sound.textContent=muted?'×':'♪';if(!muted)initAudio()});body.position.x=startingX();body.position.y=terrainAt(body.position.x).y-CFG.characterRadius;seedRings(body.position.x);requestAnimationFrame(frame);
 })();
